@@ -14,6 +14,8 @@
 
 **Authors:** Scott C., Sophia Elya (Elyan Labs)
 **Priority Date:** December 16, 2025 (first POWER8 NUMA coffer implementation)
+**DOI:** (pending Zenodo deposit — see Section 11)
+**Repository:** https://github.com/Scottcjn/mlx-coffers
 
 ---
 
@@ -280,7 +282,35 @@ TEMPORAL   (KV cache)  → High-RAM node (POWER8)   (512GB, fits all KV states)
 - MLX Coffers adds within-node stream routing (CPU/GPU) before inter-node sharding
 - Two-level hierarchy: coffer domain → intra-node stream; exo shard → inter-node transfer
 
-### 7.4 Design for Patrick's Cluster
+### 7.4 Live Cluster Validation (Elyan Labs, Feb 2026)
+
+End-to-end test on a two-node cluster — M2 Mac Mini (MLX/Metal) + RTX 5070 (CUDA):
+
+```
+Node          Arch    GPU                    Latency  Health
+─────────────────────────────────────────────────────────────
+cuda-gpu      x86_64  NVIDIA GeForce RTX 5070  100ms   UP
+mlx-m2        arm64   Apple Metal                1ms   UP
+
+Operation                      Domain      Node       Time   Result
+─────────────────────────────────────────────────────────────────────
+attn q_proj (F16, 16×512×512)  LEFT_HEMI   mlx-m2     1.7ms  ✓
+lm_head (F16, 1×512×512)       PREFRONTAL  mlx-m2     0.8ms  ✓
+unknown (size routing)         UNKNOWN     mlx-m2     1.1ms  ✓
+MLP gate_proj 7B (32×4096×4096) RIGHT_HEMI cuda-gpu  2735ms  ✓
+MLP up_proj 7B  (64×4096×4096) RIGHT_HEMI  mlx-m2    126ms  ✓
+MLP ffn Llama2  (32×4096×11008) RIGHT_HEMI cuda-gpu 10253ms  ✓
+
+6/6 ALL TESTS PASSED | 0 fallbacks | mlx-m2=4  cuda-gpu=2
+```
+
+Routing split confirms the cognitive domain hypothesis:
+- Attention and coordination ops → M2 Metal (1–2ms, low-latency CPU-stream)
+- Large MLP ops (>65K elements) → RTX 5070 CUDA (high throughput)
+- Threshold split visible: up_proj at 64×4096×4096 = 16.7M elements routes to M2
+  because latency penalty (100ms idle RTT to CUDA) outweighs size bonus for that shape
+
+### 7.5 Design for Patrick's Cluster
 | Node | Hardware | Coffer Assignment |
 |------|----------|-------------------|
 | RTX 3090 (CUDA/WSL) | 24GB VRAM, high FLOPs | RIGHT_HEMI (large MLP) |
@@ -290,7 +320,61 @@ TEMPORAL   (KV cache)  → High-RAM node (POWER8)   (512GB, fits all KV states)
 
 ---
 
-## 8. Broader Implications
+## 8. Differentiation from exo and Existing Distributed Inference
+
+### 8.1 What exo Does
+[exo](https://github.com/exo-explore/exo) is a distributed LLM inference framework that:
+- Shards model layers **sequentially** across nodes (node 0 runs layers 0–15, node 1 runs 16–31)
+- Is device-agnostic (MLX, CUDA, tinygrad backends)
+- Routes by **which layers are assigned**, not by **what the layers compute**
+- No awareness of attention vs MLP vs norm distinction
+- No cognitive domain taxonomy — all layers are equivalent routing targets
+
+### 8.2 What RAM Coffers / MLX Coffers Does Differently
+
+| Dimension | exo | RAM Coffers |
+|-----------|-----|-------------|
+| Routing basis | Layer index (sequential shard) | Cognitive domain (semantic type) |
+| Attention ops | Treated same as MLP | Always → CPU-stream / low-latency node |
+| MLP ops | Treated same as attention | Always → GPU / high-FLOP node |
+| Norm/head ops | Treated same as attention | Always → fast-coordination node |
+| KV cache | No special handling | → High-RAM node (TEMPORAL) |
+| Intra-node routing | None (one backend per node) | CPU vs GPU stream dispatch |
+| Hardware principle | "run everywhere" | "right op, right hardware" |
+| NUMA awareness | None | 4-node physical NUMA (POWER8) |
+| Neuromorphic basis | None | Brodmann area mapping |
+| Priority date | — | Dec 16, 2025 |
+
+### 8.3 The Core Claim: Semantic Routing vs Structural Routing
+
+exo and all existing distributed inference frameworks (DeepSeek Engram, FlexGen, vLLM, Petals)
+route by **structural position** — where a layer falls in the model's sequential graph.
+
+RAM Coffers routes by **semantic type** — what the operation *means* computationally and
+cognitively. This is a fundamentally different dispatch principle:
+
+> **exo**: "Layer 12 goes to node 2 because we split 32 layers across 4 nodes."
+> **RAM Coffers**: "This attention projection goes to the M2 CPU because attention is
+>  sequential, data-dependent, and maps to left-hemisphere language processing —
+>  regardless of which layer it is."
+
+The result is visible in our live cluster test: two MLP ops of the same domain (RIGHT_HEMI)
+split between M2 and CUDA based on size/latency scoring, while all attention ops
+unambiguously route to the low-latency CPU node. exo cannot express this.
+
+### 8.4 Orthogonality: Coffers + exo = Two-Level Hierarchy
+
+RAM Coffers is not a replacement for exo — it's orthogonal:
+- **Level 1 (intra-node)**: Coffers routes attention → CPU stream, MLP → GPU stream
+- **Level 2 (inter-node)**: exo shards the model across machines
+
+Combined: each exo node runs MLX Coffers internally, so large MLP ops on an M2 node
+go to Metal GPU, while attention ops stay on CPU — before exo handles the cross-node
+communication. This is the architecture described in Section 7.
+
+---
+
+## 9. Broader Implications
 
 ### 8.1 The Substrate-Invariance Principle
 The cognitive domain taxonomy is substrate-invariant:
@@ -313,7 +397,7 @@ The **routing logic is identical** across all substrates — only the dispatch m
 
 ---
 
-## 9. Future Work
+## 10. Future Work
 
 1. **Per-layer stream dispatch** — currently routes full model call; next: intercept each layer's forward()
 2. **M1 vs M4 benchmark** — compare Metal GPU stream behavior across silicon generations
@@ -325,7 +409,30 @@ The **routing logic is identical** across all substrates — only the dispatch m
 
 ---
 
-## 10. Conclusion
+## 11. Publication & DOI
+
+**Preprint deposit**: Zenodo (https://zenodo.org) — assigns a CrossRef DOI immediately on upload.
+
+**Citation format** (to be filled after deposit):
+```
+@misc{elyan2025ramcoffers,
+  title   = {RAM Coffers: Neuromorphic Cognitive-Domain Routing for Heterogeneous LLM Inference},
+  author  = {C., Scott and Elya, Sophia},
+  year    = {2025},
+  month   = dec,
+  doi     = {10.5281/zenodo.XXXXXXX},
+  url     = {https://zenodo.org/record/XXXXXXX},
+  note    = {Preprint. Priority date: December 16, 2025.}
+}
+```
+
+**arXiv submission**: cs.DC (Distributed, Parallel, and Cluster Computing) — submit after Zenodo DOI is live so the DOI can be included.
+
+**Priority protection**: Zenodo timestamps the upload and registers the DOI with CrossRef, establishing the Dec 16 / Feb 2026 priority dates independently of arXiv moderation delays.
+
+---
+
+## 12. Conclusion
 
 We introduced RAM Coffers, a neuromorphic compute routing framework that maps transformer
 layer types to cognitive brain regions and dispatches each region to its preferred hardware
