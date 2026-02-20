@@ -219,11 +219,14 @@ def test_end_to_end(router: CofferRouter) -> None:
 
     test_cases = [
         # (M, K, N,  A_type,        domain,                  desc)
-        (16,  512, 512,  GGML_TYPE_F16, CofferDomain.LEFT_HEMI,   "attention q_proj (F16, small)"),
-        (32,  512, 2048, GGML_TYPE_F16, CofferDomain.RIGHT_HEMI,  "MLP gate_proj (F16, medium)"),
-        (64,  512, 2048, GGML_TYPE_F32, CofferDomain.RIGHT_HEMI,  "MLP up_proj (F32, medium)"),
-        (1,   512, 512,  GGML_TYPE_F16, CofferDomain.PREFRONTAL,  "lm_head single token"),
-        (16,  512, 512,  GGML_TYPE_F16, CofferDomain.UNKNOWN,     "unknown domain (size routing)"),
+        # ── Small ops: should route to M2 Metal ──
+        (16,   512,  512, GGML_TYPE_F16, CofferDomain.LEFT_HEMI,  "attn q_proj (F16, small)"),
+        (1,    512,  512, GGML_TYPE_F16, CofferDomain.PREFRONTAL, "lm_head single token"),
+        (16,   512,  512, GGML_TYPE_F16, CofferDomain.UNKNOWN,    "unknown domain (size routing)"),
+        # ── LLM-realistic MLP ops: should route to CUDA at large size ──
+        (32,  4096, 4096, GGML_TYPE_F16, CofferDomain.RIGHT_HEMI, "MLP gate_proj 7B (F16, large)"),
+        (64,  4096, 4096, GGML_TYPE_F16, CofferDomain.RIGHT_HEMI, "MLP up_proj 7B (F16, large)"),
+        (32,  4096,11008, GGML_TYPE_F16, CofferDomain.RIGHT_HEMI, "MLP ffn Llama2 (F16, XL)"),
     ]
 
     print(f"  {'Description':<38} {'Domain':<14} {'Node':>14} {'ms':>7} {'Match'}")
@@ -293,8 +296,8 @@ if __name__ == "__main__":
     if not args.no_cuda:
         from coffer_router import CofferNode
         router.add_node(CofferNode(
-            name="cuda-v100", host=args.cuda_host, port=8096, caps_port=8097,
-            arch="x86_64", gpu_type="Tesla V100 16GB",
+            name="cuda-gpu", host=args.cuda_host, port=8096, caps_port=8097,
+            arch="x86_64", gpu_type="CUDA GPU",   # overwritten by /capabilities fetch
             quant_types=["F32", "F16", "Q8_0", "Q4_K", "Q6_K"],
         ))
 

@@ -498,12 +498,12 @@ def build_default_router(verbose: bool = True) -> CofferRouter:
 
     nodes = [
         CofferNode(
-            name="cuda-v100",
+            name="cuda-gpu",
             host="192.168.0.161",
             port=8096,
             caps_port=8097,
             arch="x86_64",
-            gpu_type="Tesla V100 16GB",
+            gpu_type="CUDA GPU",   # overwritten by /capabilities on startup
             quant_types=["F32", "F16", "Q8_0", "Q4_K", "Q6_K"],
         ),
         CofferNode(
