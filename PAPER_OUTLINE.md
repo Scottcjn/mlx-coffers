@@ -14,7 +14,7 @@
 
 **Authors:** Scott C., Sophia Elya (Elyan Labs)
 **Priority Date:** December 16, 2025 (first POWER8 NUMA coffer implementation)
-**DOI:** (pending Zenodo deposit — see Section 11)
+**DOI:** 10.5281/zenodo.18717767
 **Repository:** https://github.com/Scottcjn/mlx-coffers
 
 ---
@@ -413,16 +413,16 @@ The **routing logic is identical** across all substrates — only the dispatch m
 
 **Preprint deposit**: Zenodo (https://zenodo.org) — assigns a CrossRef DOI immediately on upload.
 
-**Citation format** (to be filled after deposit):
+**Citation format:**
 ```
 @misc{elyan2025ramcoffers,
   title   = {RAM Coffers: Neuromorphic Cognitive-Domain Routing for Heterogeneous LLM Inference},
   author  = {C., Scott and Elya, Sophia},
   year    = {2025},
   month   = dec,
-  doi     = {10.5281/zenodo.XXXXXXX},
-  url     = {https://zenodo.org/record/XXXXXXX},
-  note    = {Preprint. Priority date: December 16, 2025.}
+  doi     = {10.5281/zenodo.18717767},
+  url     = {https://zenodo.org/records/18717767},
+  note    = {Preprint. Priority date: December 16, 2025. Published February 20, 2026.}
 }
 ```
 
