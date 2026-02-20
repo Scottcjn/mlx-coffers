@@ -121,7 +121,13 @@ class CofferNode:
         return f"http://{self.host}:{self.caps_port}/health"
 
     def fetch_capabilities(self) -> bool:
-        """Fetch /capabilities and update node properties. Returns True on success."""
+        """Fetch /capabilities and update node properties. Returns True on success.
+
+        Falls back to a raw TCP ping on the matmul port when the HTTP caps server
+        (port caps_port) is not present — allows plain CUDA servers without the
+        MLX-style HTTP sidecar to still be used as healthy routing targets.
+        """
+        # Try HTTP caps server first (full metadata)
         try:
             t0 = time.perf_counter()
             with urllib.request.urlopen(self.health_url(), timeout=2) as r:
@@ -133,13 +139,26 @@ class CofferNode:
             self.gpu_threshold = caps.get("gpu_stream_threshold_elements", self.gpu_threshold)
             cr = caps.get("coffer_routing", {})
             if cr:
-                # Parse domain strings back to enum
                 cpu_dom = cr.get("cpu_stream", "LEFT_HEMI")
                 gpu_dom = cr.get("gpu_stream", "RIGHT_HEMI")
                 self.cpu_domains = [CofferDomain[cpu_dom]] if cpu_dom else self.cpu_domains
                 self.gpu_domains = [CofferDomain[gpu_dom]] if gpu_dom else self.gpu_domains
             self.healthy   = True
             self.last_ping = time.time()
+            return True
+        except Exception:
+            pass
+
+        # Fallback: TCP check on matmul port (plain CUDA servers have no HTTP sidecar)
+        try:
+            t0 = time.perf_counter()
+            s = socket.create_connection((self.host, self.port), timeout=2)
+            self.latency_ms = (time.perf_counter() - t0) * 1000
+            s.close()
+            self.healthy   = True
+            self.last_ping = time.time()
+            print(f"[router] {self.name}: HTTP caps unavailable, TCP ping OK "
+                  f"({self.latency_ms:.0f}ms) — using defaults")
             return True
         except Exception:
             self.healthy   = False
