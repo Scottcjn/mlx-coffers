@@ -1,0 +1,15 @@
+[project]
+name = "mlx-coffers"
+version = "0.1.0"
+description = "Apple Silicon port of RAM Coffers — neuromorphic compute routing for M-series Macs via MLX"
+dependencies = [
+    "mlx",
+    "mlx-lm",
+    "numpy",
+]
+readme = "README.md"
+requires-python = ">=3.10"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
