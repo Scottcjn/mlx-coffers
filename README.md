@@ -9,9 +9,29 @@ The routing insight is identical — only the substrate changes.
 
 ---
 
-## The Concept
+# The Concept
 
-On POWER8, "coffers" are NUMA memory banks assigned to brain regions:
+RAM Coffers maps transformer layer types to NUMA memory banks on POWER8 (512GB, 4 nodes). MLX Coffers maps the same cognitive domains to **CPU vs Metal GPU streams** on Apple Silicon. The routing insight is identical — only the substrate changes.
+
+## Installation
+
+To run the demos and tests, you need an Apple Silicon Mac and the following dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Or install using the project config:
+```bash
+pip install .
+```
+
+## Quick Start
+
+Try the demo script:
+```bash
+python coffer_demo.py
+```
 
 ```
 Coffer 0 → Prefrontal Cortex  → NUMA Node 3 (189GB, fastest)
